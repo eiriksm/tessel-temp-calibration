@@ -1,0 +1,174 @@
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width">
+  <body>
+    <link type="text/css" rel="stylesheet" href="http://code.shutterstock.com/rickshaw/src/css/graph.css">
+    <link type="text/css" rel="stylesheet" href="http://code.shutterstock.com/rickshaw/src/css/detail.css">
+    <link type="text/css" rel="stylesheet" href="http://code.shutterstock.com/rickshaw/src/css/legend.css">
+    <link type="text/css" rel="stylesheet" href="http://code.shutterstock.com/rickshaw/examples/css/lines.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+    <script src="http://code.shutterstock.com/rickshaw/vendor/d3.v3.js"></script>
+    <script src="http://code.shutterstock.com/rickshaw/rickshaw.js"></script>
+    <script src="http://code.jquery.com/jquery-1.11.2.min.js"></script>
+    <script>
+      /*global jQuery, Rickshaw */
+      (function($) {
+        'use strict';
+
+        // Oh my, inlined script all the way?
+
+        // Compare function.
+        function compare(pi, tessel) {
+          var pitemps = {};
+          var diffs = [];
+          var time;
+          for (var i = 0, len = pi.length; i < len; i++) {
+            time = parseInt(pi[i].x, 10);
+            pitemps[time] = pi[i].y;
+          }
+          for (var j = 0, len2 = tessel.length; j < len2; j++) {
+            time = parseInt(tessel[j].x, 10);
+            // Compare to pi.
+            if (!pitemps[time]) {
+              // meh.
+              continue;
+            }
+            diffs.push({
+              x: time,
+              y: tessel[j].y - pitemps[time]
+            });
+          }
+          return diffs;
+        }
+
+        // Normalize values into the format rickshaw expects.
+        function createArray(a) {
+          var ar = [];
+          for (var i = 0, len = a.length; i < len; i++) {
+            var l = a[i].split(',');
+            if (!l[0] || !l[1]) {
+              continue;
+            }
+            var obj = {
+              x: parseInt(l[0], 10) / 1000,
+              y: parseFloat(l[1])
+            };
+            if (isNaN(obj.x) || isNaN(obj.y)) {
+              continue;
+            }
+            ar.push(obj);
+          }
+          return ar;
+        }
+
+        $(document).ready(function() {
+          bootStrap();
+          $(window).bind('hashchange', function() {
+            bootStrap();
+          });
+        });
+
+        // Start the render.
+        function bootStrap() {
+          // Empty all used elements.
+          $('#chart').html('');
+          $('#legend').html('');
+          var filename = 'log';
+          $('li').removeClass('active');
+          if (window.location.hash === '#2' || window.location.hash === '#3') {
+            filename += window.location.hash.substr(1,1);
+            $('a[href="' + window.location.hash + '"]').parent().addClass('active');
+          }
+          else {
+            $('a[href="#1"]').parent().addClass('active');
+          }
+
+          $.get('tessel/' + filename + '.txt')
+          .success(function(d) {
+            $.get('pi/' + filename + '.txt')
+            .success(function(e) {
+              var dataTessel = d.split("\n");
+              var dataPi = e.split("\n");
+              var dt = createArray(dataTessel);
+              var dp = createArray(dataPi);
+              var diff = compare(dp, dt);
+
+              // Ouch this is kind of ugly. But avoids errors.
+              // @see https://github.com/shutterstock/rickshaw/issues/432
+              var $graph = $('#chart');
+              $graph.empty();
+              var $newGraph = $graph.clone();
+              $graph.replaceWith($newGraph);
+              $graph = $newGraph;
+
+              // Almost copy paste from rickshaw example.
+              var graph = new Rickshaw.Graph({
+                element: $graph[0],
+                width: window.innerWidth,
+                height: window.innerHeight * 0.6,
+                renderer: 'line',
+                series: [
+                  {
+                    color: "#c05020",
+                    data: dt,
+                    name: 'Tessel (port B)'
+                  },
+                  {
+                    color: "#30c020",
+                    data: dp,
+                    name: 'Raspberry PI with DS18B20 (water proof version)'
+                  },
+                  {
+                    color: "#60ff20",
+                    data: diff,
+                    name: 'Diff'
+                  }
+                ]
+              });
+
+              graph.render();
+
+              new Rickshaw.Graph.HoverDetail({
+                graph: graph
+              });
+
+              var legend = new Rickshaw.Graph.Legend( {
+                graph: graph,
+                element: document.getElementById('legend')
+              });
+
+              new Rickshaw.Graph.Behavior.Series.Toggle({
+                graph: graph,
+                legend: legend
+              });
+
+              var axes = new Rickshaw.Graph.Axis.Time({
+                graph: graph
+              });
+              axes.render();
+            });
+          });
+        }
+      })(jQuery);
+    </script>
+    <nav class="navbar navbar-default" role="navigation">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="#">Temperature calibration</a>
+        </div>
+      </div>
+    </nav>
+    <div class="container-fluid">
+      <div class="row">
+        <div>
+          <ul class="nav nav-tabs">
+            <li role="presentation"><a class="" href="#1">10 C</a></li>
+            <li role="presentation"><a class="" href="#2">15 C</a></li>
+            <li role="presentation"><a class="" href="#3">3 C</a></li>
+          </ul>
+        </div>
+        <div id="chart"></div>
+        <div id="legend"></div>
+    </div>
+  </body>
+</html>
